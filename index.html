@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GELTEK трансфер</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header">
+        <h1>GELTEK трансфер</h1>
+      </header>
+
+      <!-- Вкладки -->
+      <div class="tabs">
+        <button class="tab active" data-tab="schedule">Расписание</button>
+        <button class="tab" data-tab="admin">Настройка администратора</button>
+      </div>
+
+      <!-- Контент вкладок -->
+      <div class="content">
+        <!-- Вкладка "Расписание" -->
+        <div id="scheduleTab" class="tab-content active">
+          <div class="filter-panel">
+            <div class="calendar-block">
+              <label>Дата:</label>
+              <input type="date" id="datePicker" class="date-input" />
+            </div>
+
+            <div class="direction-block">
+              <span class="filter-label">Направление:</span>
+              <label class="radio-label">
+                <input type="radio" name="direction" value="metro" checked /> От
+                метро
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="direction" value="gate" /> От
+                проходной
+              </label>
+            </div>
+
+            <div class="locations-block">
+              <span class="filter-label">Пункт назначения:</span>
+              <label class="checkbox-label">
+                <input type="checkbox" id="chkOffice" checked /> Офис
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="chkProduction" /> Производство
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="chkWarehouse" /> Склад
+              </label>
+            </div>
+
+            <button id="showScheduleBtn" class="show-button">
+              Показать расписание
+            </button>
+          </div>
+
+          <div id="scheduleResult" class="schedule-result">
+            <h3 id="scheduleDateTitle">Расписание на</h3>
+            <table id="scheduleTable" class="schedule-table">
+              <thead>
+                <tr>
+                  <th>Время</th>
+                  <th>Откуда</th>
+                  <th>Куда</th>
+                </tr>
+              </thead>
+              <tbody id="scheduleBody"></tbody>
+            </table>
+            <p id="noDataMessage" class="no-data" style="display: none">
+              Нет рейсов по заданным фильтрам.
+            </p>
+          </div>
+        </div>
+
+        <!-- Вкладка "Настройка администратора" -->
+        <div id="adminTab" class="tab-content">
+          <!-- Экран входа -->
+          <div id="loginPanel" class="admin-login">
+            <h2>Доступ администратора</h2>
+            <form id="loginForm">
+              <input
+                type="password"
+                id="passwordInput"
+                class="password-input"
+                placeholder="Введите пароль"
+              />
+              <p id="loginError" class="error-message" style="display: none">
+                Неверный пароль
+              </p>
+              <button type="submit" class="login-button">Войти</button>
+            </form>
+          </div>
+
+          <!-- Панель редактирования -->
+          <div id="editorPanel" class="admin-panel" style="display: none">
+            <h2>Настройка расписания</h2>
+
+            <div class="admin-controls">
+              <div class="form-group">
+                <label>Дата:</label>
+                <input type="date" id="adminDatePicker" class="date-input" />
+              </div>
+              <div class="form-group">
+                <label>Направление:</label>
+                <select id="adminDirection" class="select-input">
+                  <option value="metro">От метро</option>
+                  <option value="gate">От проходной</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="time-editor">
+              <h3>Укажите время отправления</h3>
+              <div class="time-row">
+                <label>Офис:</label>
+                <input type="time" id="timeOffice" />
+              </div>
+              <div class="time-row">
+                <label>Производство:</label>
+                <input type="time" id="timeProduction" />
+              </div>
+              <div class="time-row">
+                <label>Склад:</label>
+                <input type="time" id="timeWarehouse" />
+              </div>
+              <button id="saveAdminBtn" class="save-button">
+                Сохранить изменения
+              </button>
+              <p class="admin-hint">
+                * Оставьте поле пустым, чтобы удалить рейс.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        // ---------- Константы ----------
+        const STORAGE_KEY = "geltek_transfer_schedule";
+        const CORRECT_PASSWORD = "GELTEK+12345+";
+
+        // ---------- DOM элементы ----------
+        // Вкладки
+        const tabs = document.querySelectorAll(".tab");
+        const scheduleTab = document.getElementById("scheduleTab");
+        const adminTab = document.getElementById("adminTab");
+
+        // Расписание
+        const datePicker = document.getElementById("datePicker");
+        const directionRadios = document.querySelectorAll(
+          'input[name="direction"]'
+        );
+        const chkOffice = document.getElementById("chkOffice");
+        const chkProduction = document.getElementById("chkProduction");
+        const chkWarehouse = document.getElementById("chkWarehouse");
+        const showBtn = document.getElementById("showScheduleBtn");
+        const scheduleBody = document.getElementById("scheduleBody");
+        const scheduleDateTitle = document.getElementById("scheduleDateTitle");
+        const noDataMessage = document.getElementById("noDataMessage");
+        const scheduleTable = document.getElementById("scheduleTable");
+
+        // Админка
+        const loginPanel = document.getElementById("loginPanel");
+        const editorPanel = document.getElementById("editorPanel");
+        const loginForm = document.getElementById("loginForm");
+        const passwordInput = document.getElementById("passwordInput");
+        const loginError = document.getElementById("loginError");
+        const adminDatePicker = document.getElementById("adminDatePicker");
+        const adminDirection = document.getElementById("adminDirection");
+        const timeOffice = document.getElementById("timeOffice");
+        const timeProduction = document.getElementById("timeProduction");
+        const timeWarehouse = document.getElementById("timeWarehouse");
+        const saveAdminBtn = document.getElementById("saveAdminBtn");
+
+        // ---------- Состояние ----------
+        let scheduleData = {}; // { "YYYY-MM-DD|direction|location": "HH:MM", ... }
+        let isAdmin = false;
+
+        // ---------- Инициализация ----------
+        function loadScheduleData() {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          scheduleData = saved ? JSON.parse(saved) : {};
+        }
+        loadScheduleData();
+
+        // Установить сегодняшнюю дату по умолчанию
+        const today = new Date().toISOString().split("T")[0];
+        datePicker.value = today;
+        adminDatePicker.value = today;
+
+        // Функция получения времени из хранилища
+        function getTime(date, direction, location) {
+          return scheduleData[`${date}|${direction}|${location}`] || null;
+        }
+
+        // Функция сохранения времени
+        function setTime(date, direction, location, timeValue) {
+          const key = `${date}|${direction}|${location}`;
+          if (timeValue && timeValue.trim() !== "") {
+            scheduleData[key] = timeValue;
+          } else {
+            delete scheduleData[key];
+          }
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(scheduleData));
+          // Оповестим другие вкладки (не обязательно, но для синхронизации)
+          window.dispatchEvent(new Event("storage"));
+        }
+
+        // ---------- Отображение расписания ----------
+        function renderSchedule() {
+          const selectedDate = datePicker.value;
+          const direction = getSelectedDirection();
+          const locations = [];
+          if (chkOffice.checked)
+            locations.push({ key: "office", name: "Офис" });
+          if (chkProduction.checked)
+            locations.push({ key: "production", name: "Производство" });
+          if (chkWarehouse.checked)
+            locations.push({ key: "warehouse", name: "Склад" });
+
+          const fromName = direction === "metro" ? "метро" : "проходная";
+          const rows = [];
+
+          locations.forEach((loc) => {
+            const time = getTime(selectedDate, direction, loc.key);
+            if (time) {
+              rows.push({ time, from: fromName, to: loc.name });
+            }
+          });
+
+          // Форматирование даты для заголовка
+          const formattedDate = selectedDate.split("-").reverse().join(".");
+          scheduleDateTitle.textContent = `Расписание на ${formattedDate}`;
+
+          scheduleBody.innerHTML = "";
+          if (rows.length === 0) {
+            scheduleTable.style.display = "none";
+            noDataMessage.style.display = "block";
+          } else {
+            scheduleTable.style.display = "table";
+            noDataMessage.style.display = "none";
+            rows.forEach((row) => {
+              const tr = document.createElement("tr");
+              tr.innerHTML = `<td>${row.time}</td><td>${row.from}</td><td>${row.to}</td>`;
+              scheduleBody.appendChild(tr);
+            });
+          }
+        }
+
+        function getSelectedDirection() {
+          for (let radio of directionRadios) {
+            if (radio.checked) return radio.value;
+          }
+          return "metro";
+        }
+
+        // ---------- Переключение вкладок ----------
+        function switchTab(tabId) {
+          tabs.forEach((t) => t.classList.remove("active"));
+          document
+            .querySelectorAll(".tab-content")
+            .forEach((c) => c.classList.remove("active"));
+
+          if (tabId === "schedule") {
+            tabs[0].classList.add("active");
+            scheduleTab.classList.add("active");
+            renderSchedule();
+          } else {
+            tabs[1].classList.add("active");
+            adminTab.classList.add("active");
+            // Если админ уже залогинен, подгружаем данные в форму
+            if (isAdmin) {
+              loadAdminForm();
+            }
+          }
+        }
+
+        tabs[0].addEventListener("click", () => switchTab("schedule"));
+        tabs[1].addEventListener("click", () => switchTab("admin"));
+
+        // ---------- События на вкладке Расписание ----------
+        showBtn.addEventListener("click", renderSchedule);
+        // Автообновление при изменении фильтров? Можно оставить только по кнопке, так логичнее.
+
+        // ---------- Админка: вход ----------
+        loginForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          if (passwordInput.value === CORRECT_PASSWORD) {
+            isAdmin = true;
+            loginPanel.style.display = "none";
+            editorPanel.style.display = "block";
+            loginError.style.display = "none";
+            passwordInput.value = "";
+            loadAdminForm();
+          } else {
+            loginError.style.display = "block";
+          }
+        });
+
+        // Функция загрузки сохранённых времён в форму админа
+        function loadAdminForm() {
+          const date = adminDatePicker.value;
+          const dir = adminDirection.value;
+          timeOffice.value = getTime(date, dir, "office") || "";
+          timeProduction.value = getTime(date, dir, "production") || "";
+          timeWarehouse.value = getTime(date, dir, "warehouse") || "";
+        }
+
+        // При изменении даты или направления в админке подгружаем данные
+        adminDatePicker.addEventListener("change", loadAdminForm);
+        adminDirection.addEventListener("change", loadAdminForm);
+
+        // Сохранение изменений админом
+        saveAdminBtn.addEventListener("click", () => {
+          const date = adminDatePicker.value;
+          const dir = adminDirection.value;
+          setTime(date, dir, "office", timeOffice.value);
+          setTime(date, dir, "production", timeProduction.value);
+          setTime(date, dir, "warehouse", timeWarehouse.value);
+          alert("Расписание сохранено!");
+          // Обновляем таблицу на вкладке Расписание, если она открыта
+          if (scheduleTab.classList.contains("active")) {
+            renderSchedule();
+          }
+        });
+
+        // Синхронизация при изменении localStorage из другой вкладки
+        window.addEventListener("storage", () => {
+          loadScheduleData();
+          if (scheduleTab.classList.contains("active")) {
+            renderSchedule();
+          }
+          if (isAdmin && editorPanel.style.display === "block") {
+            loadAdminForm();
+          }
+        });
+
+        // Первоначальный рендер
+        renderSchedule();
+      })();
+    </script>
+  </body>
+</html>
